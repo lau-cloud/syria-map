@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>MapLibre Map Test</title>
+    <meta property="og:description" content="" />
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@5.7.0/dist/maplibre-gl.css' />
+    <script src='https://unpkg.com/maplibre-gl@5.7.0/dist/maplibre-gl.js'></script>
+    <script src="https://unpkg.com/pmtiles@4.3.0/dist/pmtiles.js"></script>
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+
+        .maplibregl-popup {
+            max-width: 300px;
+            font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+         .maplibregl-popup-content p {
+            margin-top: 4px;
+            margin-bottom: 0;
+        }
+
+        .maplibregl-popup-content {
+            background-color: white;
+            border-radius: 10px;
+            padding: 12px 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            color: #333;
+        }
+
+        .maplibregl-popup-content strong {
+            color: #d73027;
+        }
+    </style>
+</head>
+
+<body>
+<div id="map"></div>
+
+<script>
+
+    const bounds = [
+    [34.5, 32.0], // SW
+    [42.5, 37.5]  // NE
+    ];
+
+    // Setup PMTiles protocol
+    let protocol = new pmtiles.Protocol({metadata: true});
+    maplibregl.addProtocol("pmtiles", protocol.tile);
+
+
+    // Initialize MapLibre
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            sources: {
+                example_source: {
+                    type: "vector",
+                    url: "pmtiles://syria.pmtiles"
+                }
+            },
+            layers: [
+                {
+                    id: 'background',
+                    type: 'background',
+                    paint: { 'background-color': '#D6D6D6' } 
+                },
+                {
+                    id: "water",
+                    source: "example_source",
+                    "source-layer": "water",
+                    filter: ["==", ["geometry-type"], "Polygon"],
+                    type: "fill",
+                    paint: {
+                        "fill-color": "white"
+                    }
+                },
+                {
+                    id:"roads",
+                    source: "example_source", "source-layer": "transportation",
+                    type:"line",
+                    paint: {
+                        "line-color": "#C9C9C9"
+                    }
+                },
+                  {
+                    id: "landuse",
+                    source: "example_source",
+                    "source-layer": "landuse",
+                    type: "fill",
+                    paint: {
+                        "fill-color": "#C4C4C4"
+                    }
+                },
+                {
+                    id:"boundaries",
+                    source: "example_source", "source-layer": "boundary",
+                    type:"line",
+                    paint: {
+                        "line-color": "white"
+                    }
+                },
+            ]
+        },
+        center: [38, 34.7], 
+        zoom: 6,
+        minZoom: 6, // Minimum zoom level
+    });
+
+    map.on('style.load', () => {
+        map.setProjection({ type: 'globe' });
+    });
+
+    map.on('load', () => {
+        // Countries GeoJSON
+       
+        // Points GeoJSON
+        map.addSource("points", {
+            type: "geojson",
+            data: "events.geojson"
+        });
+
+        map.addLayer({
+            id: "points-layer",
+            type: "circle",
+            source: "points",
+            paint: {
+                "circle-radius": 6,
+                "circle-color": "#d73027",
+                "circle-stroke-color": "#fff",
+                "circle-stroke-width": 1
+            }
+        });
+
+        map.addControl(new maplibregl.NavigationControl(), 'top-left');
+
+        map.on('move', () => {
+                let center = map.getCenter();
+                let lng = Math.max(bounds[0][0], Math.min(bounds[1][0], center.lng));
+                let lat = Math.max(bounds[0][1], Math.min(bounds[1][1], center.lat));
+                if (center.lng !== lng || center.lat !== lat) {
+                    map.setCenter([lng, lat]);
+                }
+         });
+
+
+        // Popup
+        const popup = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false
+        });
+
+        map.on("mousemove", "points-layer", (e) => {
+            const props = e.features[0].properties;
+            const coordinates = e.features[0].geometry.coordinates.slice();
+
+            popup
+                .setLngLat(coordinates)
+                .setHTML(`
+                    <strong>${props.location || "No name"}</strong><br/>
+                    <p>${props.description || ""}</p>
+                    <p>${props.link || ""}</p>
+                `)
+                .addTo(map);
+
+            map.getCanvas().style.cursor = "pointer";
+        });
+
+        map.on("mouseleave", "points-layer", () => {
+            popup.remove();
+            map.getCanvas().style.cursor = "";
+        });
+    });
+</script>
+</body>
+</html>
